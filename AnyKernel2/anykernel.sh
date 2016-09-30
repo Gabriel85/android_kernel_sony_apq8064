@@ -6,7 +6,7 @@
 kernel.string="Black Kernel for CM13-based ROMs"
 do.devicecheck=1
 do.initd=0
-do.modules=1
+do.modules=0
 do.cleanup=1
 device.name1=pollux
 
@@ -79,8 +79,12 @@ write_boot() {
     dtb=`ls *-dtb`;
     dtb="--dt $split_img/$dtb";
   fi;
-  cd $ramdisk;
-  find . | cpio -H newc -o | gzip > /tmp/anykernel/ramdisk-new.cpio.gz;
+  if [ -f "$bin/mkbootfs" ]; then
+    $bin/mkbootfs /tmp/anykernel/ramdisk | gzip > /tmp/anykernel/ramdisk-new.cpio.gz;
+  else
+    cd $ramdisk;
+    find . | cpio -H newc -o | gzip > /tmp/anykernel/ramdisk-new.cpio.gz;
+  fi;
   if [ $? != 0 ]; then
     ui_print " "; ui_print "Repacking ramdisk failed. Aborting..."; exit 1;
   fi;
@@ -111,14 +115,14 @@ replace_string() {
 
 # replace_section <file> <begin search string> <end search string> <replacement string>
 replace_section() {
-  line=`grep -n "$2" $1 | cut -d: -f1`;
-  sed -i "/${2}/,/${3}/d" $1;
+  line=`grep -n "$2" $1 | head -n1 | cut -d: -f1`;
+  sed -i "/${2//\//\\/}/,/${3//\//\\/}/d" $1;
   sed -i "${line}s;^;${4}\n;" $1;
 }
 
 # remove_section <file> <begin search string> <end search string>
 remove_section() {
-  sed -i "/${2}/,/${3}/d" $1;
+  sed -i "/${2//\//\\/}/,/${3//\//\\/}/d" $1;
 }
 
 # insert_line <file> <if search string> <before|after> <line match string> <inserted line>
@@ -128,7 +132,7 @@ insert_line() {
       before) offset=0;;
       after) offset=1;;
     esac;
-    line=$((`grep -n "$4" $1 | cut -d: -f1` + offset));
+    line=$((`grep -n "$4" $1 | head -n1 | cut -d: -f1` + offset));
     sed -i "${line}s;^;${5}\n;" $1;
   fi;
 }
@@ -136,7 +140,7 @@ insert_line() {
 # replace_line <file> <line replace string> <replacement line>
 replace_line() {
   if [ ! -z "$(grep "$2" $1)" ]; then
-    line=`grep -n "$2" $1 | cut -d: -f1`;
+    line=`grep -n "$2" $1 | head -n1 | cut -d: -f1`;
     sed -i "${line}s;.*;${3};" $1;
   fi;
 }
@@ -144,7 +148,7 @@ replace_line() {
 # remove_line <file> <line match string>
 remove_line() {
   if [ ! -z "$(grep "$2" $1)" ]; then
-    line=`grep -n "$2" $1 | cut -d: -f1`;
+    line=`grep -n "$2" $1 | head -n1 | cut -d: -f1`;
     sed -i "${line}d" $1;
   fi;
 }
@@ -163,7 +167,7 @@ insert_file() {
       before) offset=0;;
       after) offset=1;;
     esac;
-    line=$((`grep -n "$4" $1 | cut -d: -f1` + offset));
+    line=$((`grep -n "$4" $1 | head -n1 | cut -d: -f1` + offset));
     sed -i "${line}s;^;\n;" $1;
     sed -i "$((line - 1))r $patch/$5" $1;
   fi;
